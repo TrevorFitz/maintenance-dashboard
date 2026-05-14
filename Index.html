@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maintenance Dashboard — PMG</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:#0f1117; --surface:#181c27; --surface2:#1e2333;
+    --border:rgba(255,255,255,0.07); --text:#e8eaf0; --text-muted:#7a8099;
+    --accent:#4f8ef7; --accent2:#a259f7; --danger:#f75a5a;
+    --warning:#f7a25a; --success:#3ecf8e;
+    --radius:12px; --font:'DM Sans',sans-serif; --mono:'DM Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;
+    border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-mark{width:32px;height:32px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff}
+  .logo-text{font-size:15px;font-weight:600;letter-spacing:-0.3px}
+  .logo-sub{font-size:11px;color:var(--text-muted);margin-top:1px}
+  .header-right{display:flex;align-items:center;gap:12px}
+  #lastUpdated,#nextRefresh{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+
+  .config-bar{display:flex;align-items:center;gap:10px;padding:10px 28px;
+    background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .config-bar label{font-size:12px;color:var(--text-muted);white-space:nowrap}
+  .config-bar input{font-family:var(--mono);font-size:12px;background:var(--bg);
+    border:1px solid var(--border);border-radius:6px;color:var(--text);
+    padding:6px 10px;flex:1;min-width:220px;outline:none;transition:border-color .2s}
+  .config-bar input:focus{border-color:var(--accent)}
+  .filename-preview{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap;padding:0 4px}
+
+  .btn{padding:7px 16px;border-radius:8px;border:none;font-family:var(--font);
+    font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#3a7de8}
+  .btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+  .btn-ghost:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  .status-banner{display:none;align-items:center;gap:10px;padding:10px 28px;font-size:13px}
+  .status-banner.show{display:flex}
+  .status-banner.loading{background:rgba(79,142,247,.1);color:var(--accent)}
+  .status-banner.error{background:rgba(247,90,90,.1);color:var(--danger)}
+  .status-banner.success{background:rgba(62,207,142,.1);color:var(--success)}
+  .spinner{width:14px;height:14px;border:2px solid currentColor;
+    border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  main{padding:24px 28px}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:20px 22px;position:relative;overflow:hidden;transition:transform .15s}
+  .kpi-card:hover{transform:translateY(-1px)}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+  .kpi-card.active::before{background:var(--accent)}
+  .kpi-card.nodate::before{background:var(--text-muted)}
+  .kpi-card.overdue::before{background:var(--danger)}
+  .kpi-card.duetoday::before{background:var(--warning)}
+  .kpi-num{font-size:36px;font-weight:300;letter-spacing:-1px;line-height:1;font-family:var(--mono)}
+  .kpi-card.active .kpi-num{color:var(--accent)}
+  .kpi-card.overdue .kpi-num{color:var(--danger)}
+  .kpi-card.duetoday .kpi-num{color:var(--warning)}
+  .kpi-label{font-size:12px;color:var(--text-muted);margin-top:8px;letter-spacing:.3px}
+
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+  .chart-card.full{grid-column:1/-1}
+  .chart-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:16px;letter-spacing:-.1px}
+  .chart-wrap{position:relative}
+  .pie-layout{display:flex;align-items:center;gap:20px}
+  .pie-canvas-wrap{flex-shrink:0}
+  .legend{display:flex;flex-direction:column;gap:7px}
+  .legend-item{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-muted)}
+  .legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .legend-val{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text)}
+
+  /* Deployment modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+    z-index:200;align-items:center;justify-content:center}
+  .modal-overlay.show{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:28px 32px;max-width:640px;width:92%;max-height:88vh;overflow-y:auto}
+  .modal h2{font-size:17px;font-weight:600;margin-bottom:4px}
+  .modal-sub{font-size:12px;color:var(--text-muted);margin-bottom:22px}
+  .step{display:flex;gap:14px;margin-bottom:18px}
+  .step-num{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;
+    font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+  .step-num.info{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-size:14px}
+  .step-body{flex:1}
+  .step-title{font-size:13px;font-weight:600;margin-bottom:5px}
+  .step-desc{font-size:12px;color:var(--text-muted);line-height:1.7}
+  .step-desc code{background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+    padding:1px 6px;font-family:var(--mono);font-size:11px;color:var(--accent)}
+  .modal hr{border:none;border-top:1px solid var(--border);margin:18px 0}
+  .modal-close{margin-top:10px;width:100%}
+
+  @media(max-width:900px){
+    .kpi-row{grid-template-columns:1fr 1fr}
+    .charts-row{grid-template-columns:1fr}
+    main,header,.config-bar{padding-left:16px;padding-right:16px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Deployment guide modal ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="deployModal">
+  <div class="modal">
+    <h2>🚀 Deploying to SharePoint</h2>
+    <div class="modal-sub">Follow these steps once to publish the dashboard as a live SharePoint page</div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Upload this HTML file to SharePoint</div>
+        <div class="step-desc">Go to your SharePoint site → open any Document Library (e.g. <strong>Documents</strong>) → click <strong>Upload → Files</strong> → select <code>maintenance_dashboard.html</code>.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Get the file's direct URL</div>
+        <div class="step-desc">Click the three dots (···) next to the uploaded file → <strong>Copy link</strong>. Remove any <code>?web=1</code> query string from the end. The URL should end in <code>.html</code>.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Create or edit a SharePoint page</div>
+        <div class="step-desc">Go to <strong>Pages</strong> in your site → click <strong>New → Page</strong> (or open an existing page and click <strong>Edit</strong>). Name it something like <em>Maintenance Dashboard</em>.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Add an Embed web part</div>
+        <div class="step-desc">Click the <strong>+</strong> to add a web part → search for <strong>Embed</strong> → select it. Paste the HTML file URL from Step 2 into the embed field. Stretch it to full width and set the height to at least <code>900px</code>.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">Publish the page</div>
+        <div class="step-desc">Click <strong>Publish</strong> (top right). The dashboard is now live. Anyone with SharePoint access can view it — it uses their existing Microsoft 365 login automatically, no separate sign-in needed.</div>
+      </div>
+    </div>
+
+    <hr />
+
+    <div class="step">
+      <div class="step-num info">⟳</div>
+      <div class="step-body">
+        <div class="step-title">How auto-refresh works</div>
+        <div class="step-desc">
+          The dashboard auto-refreshes at <strong>07:00 SAST every day</strong> and also when the page is first opened. It builds today's filename automatically — e.g. <code>WorkOrdersAdministration (15 May).xlsx</code>. If that file isn't found (because you haven't exported today yet), it falls back to the last successfully loaded file and shows a warning.
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num info">✏️</div>
+      <div class="step-body">
+        <div class="step-title">Updating the file series name</div>
+        <div class="step-desc">
+          When you rename your export series (e.g. changing from <code>WorkOrdersAdministration</code> to something else), simply update the <strong>Base filename</strong> field at the top of the dashboard and click <strong>Save &amp; Load</strong>. The new name is remembered and all future auto-refreshes will use it. You never need to re-upload or edit the HTML file.
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary modal-close" onclick="document.getElementById('deployModal').classList.remove('show')">Got it — close guide</button>
+  </div>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">PM</div>
+    <div>
+      <div class="logo-text">PMG Maintenance</div>
+      <div class="logo-sub">Work Order Dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="lastUpdated">Not loaded</span>
+    <span id="nextRefresh"></span>
+    <button class="btn btn-ghost" onclick="document.getElementById('deployModal').classList.add('show')">📋 Deploy guide</button>
+    <button class="btn btn-ghost" onclick="manualRefresh()" id="refreshBtn">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- ── Config bar ─────────────────────────────────────────────────────── -->
+<div class="config-bar">
+  <label for="baseNameInput">Base filename:</label>
+  <input type="text" id="baseNameInput" value="WorkOrdersAdministration"
+    placeholder="e.g. WorkOrdersAdministration"
+    title="The part of the filename before the date. Do not include the date or .xlsx" />
+  <span style="font-size:12px;color:var(--text-muted)">→ today's file:</span>
+  <span class="filename-preview" id="filenamePreview"></span>
+  <button class="btn btn-primary" onclick="saveAndLoad()" id="loadBtn">Save &amp; Load</button>
+  <span style="font-size:11px;color:var(--text-muted)">💡 Update only when the file series name changes</span>
+</div>
+
+<!-- ── Status banner ──────────────────────────────────────────────────── -->
+<div class="status-banner" id="statusBanner">
+  <div class="spinner" id="statusSpinner" style="display:none"></div>
+  <span id="statusText"></span>
+</div>
+
+<!-- ── Dashboard ──────────────────────────────────────────────────────── -->
+<main>
+  <div class="kpi-row">
+    <div class="kpi-card active">  <div class="kpi-num" id="kpi-active">—</div><div class="kpi-label">Active</div></div>
+    <div class="kpi-card nodate">  <div class="kpi-num" id="kpi-nodate">—</div><div class="kpi-label">No Due Date</div></div>
+    <div class="kpi-card overdue"> <div class="kpi-num" id="kpi-overdue">—</div><div class="kpi-label">Overdue</div></div>
+    <div class="kpi-card duetoday"><div class="kpi-num" id="kpi-today">—</div>  <div class="kpi-label">Items Due Today</div></div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Active by Assigned Users</div>
+      <div class="chart-wrap" style="height:260px"><canvas id="assignedChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Items Due Today by Assigned Users</div>
+      <div class="chart-wrap" style="height:260px"><canvas id="dueTodayChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Active by Priority</div>
+      <div class="pie-layout">
+        <div class="pie-canvas-wrap"><canvas id="priorityChart" width="180" height="180"></canvas></div>
+        <div class="legend" id="priorityLegend"></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Overdue by Timeframe</div>
+      <div class="pie-layout">
+        <div class="pie-canvas-wrap"><canvas id="timeframeChart" width="180" height="180"></canvas></div>
+        <div class="legend" id="timeframeLegend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card full">
+      <div class="chart-title">Active by Type</div>
+      <div class="chart-wrap" style="height:340px"><canvas id="typeChart"></canvas></div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── SharePoint paths ──────────────────────────────────────────────────────
+const SP_SITE   = 'https://pimms.sharepoint.com/sites/PMGSharePoint';
+const SP_FOLDER = '/sites/PMGSharePoint/Shared Documents/Power BI Reports/Maintenance Reports (Fiix)/Fiix Exports/';
+
+// ── localStorage keys ─────────────────────────────────────────────────────
+const KEY_BASE      = 'pmg_basename';       // saved base filename
+const KEY_LAST_FILE = 'pmg_last_file';      // last successfully loaded full filename
+const KEY_LAST_DATE = 'pmg_last_load_date'; // date of last successful load (YYYY-MM-DD)
+
+// ── Column names (exact Excel headers) ───────────────────────────────────
+// Excel columns in order:
+// Description | Code | Date Created | Priority | Assets | Status |
+// Assigned Users | Completed By Users | Type | Origin Work Order |
+// Task | Status | Time Estimated Hours | Time Spent Hours | Cause |
+// Suggested Completion Date
+//
+// Note: "Status" appears twice (cols F and L). xlsx-js names the second one "Status_1".
+const COL = {
+  status:        'Status',
+  assignedUsers: 'Assigned Users',
+  suggestedDate: 'Suggested Completion Date',
+  priority:      'Priority',
+  type:          'Type',
+};
+
+// Statuses that count as "Active" — add more if needed
+const ACTIVE_STATUSES = ['open','in progress','active','assigned','pending','work requested','in-progress'];
+
+// ── Colour palettes ───────────────────────────────────────────────────────
+const P_BLUE   = '#4f8ef7';
+const P_PURPLE = '#a259f7';
+const P_PIE1   = ['#4f8ef7','#7f8fa6','#f7a25a','#a259f7','#ffc000','#3ecf8e','#f75a5a','#54d2d2'];
+const P_PIE2   = ['#4f8ef7','#1a4fa0','#f7a25a','#a259f7'];
+const P_RED    = ['#f75a5a','#d63a3a','#ff8080','#ff4040','#c02020','#ff9090','#b01010',
+                  '#ff6060','#e05050','#ff7070','#cc3030','#ffa0a0'];
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function todayLabel(d) {
+  // "15 May" — matches your file naming convention
+  return (d||new Date()).toLocaleDateString('en-ZA', { day:'numeric', month:'short' });
+}
+
+function buildFileName(base, date) {
+  return `${base} (${todayLabel(date)}).xlsx`;
+}
+
+// ── Filename preview (config bar) ─────────────────────────────────────────
+function updatePreview() {
+  const base = document.getElementById('baseNameInput').value.trim();
+  document.getElementById('filenamePreview').textContent = base ? buildFileName(base) : '—';
+}
+document.getElementById('baseNameInput').addEventListener('input', updatePreview);
+
+// ── Restore saved base name on load ──────────────────────────────────────
+(function restoreState() {
+  const saved = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
+  document.getElementById('baseNameInput').value = saved;
+  updatePreview();
+})();
+
+// ── Save & Load (triggered by button) ────────────────────────────────────
+function saveAndLoad() {
+  const base = document.getElementById('baseNameInput').value.trim();
+  if (!base) { setStatus('error', 'Please enter a base filename.'); return; }
+  localStorage.setItem(KEY_BASE, base);
+  loadData(buildFileName(base));
+}
+
+// ── Manual refresh (↻ button) ─────────────────────────────────────────────
+function manualRefresh() {
+  const base = localStorage.getItem(KEY_BASE) || document.getElementById('baseNameInput').value.trim();
+  loadData(buildFileName(base), /*allowFallback=*/true);
+}
+
+// ── Status banner ─────────────────────────────────────────────────────────
+function setStatus(type, msg, persist) {
+  const banner = document.getElementById('statusBanner');
+  document.getElementById('statusText').textContent = msg;
+  document.getElementById('statusSpinner').style.display = type==='loading' ? 'block' : 'none';
+  banner.className = 'status-banner show ' + type;
+  if (!persist && type !== 'loading') setTimeout(()=>banner.classList.remove('show'), 7000);
+}
+
+// ── Countdown to next auto-refresh ───────────────────────────────────────
+function updateCountdown() {
+  const now  = new Date();
+  const next = new Date(); next.setHours(7,0,0,0);
+  if (now >= next) next.setDate(next.getDate()+1);
+  const diff = Math.round((next-now)/60000);
+  document.getElementById('nextRefresh').textContent =
+    `Auto-refresh in ${Math.floor(diff/60)}h ${diff%60}m`;
+}
+updateCountdown();
+setInterval(updateCountdown, 60000);
+
+// ── Auto-refresh scheduler (07:00 SAST daily) ─────────────────────────────
+function scheduleAutoRefresh() {
+  const now  = new Date();
+  const next = new Date(); next.setHours(7,0,0,0);
+  if (now >= next) next.setDate(next.getDate()+1);
+  setTimeout(()=>{
+    triggerAutoRefresh();
+    setInterval(triggerAutoRefresh, 24*60*60*1000);
+  }, next-now);
+}
+
+function triggerAutoRefresh() {
+  const base = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
+  loadData(buildFileName(base), /*allowFallback=*/true);
+}
+
+scheduleAutoRefresh();
+
+// ── Auto-load on page open (if not already loaded today) ──────────────────
+(function autoLoadOnOpen() {
+  if (localStorage.getItem(KEY_LAST_DATE) !== todayISO()) {
+    const base = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
+    loadData(buildFileName(base), /*allowFallback=*/true);
+  }
+})();
+
+// ── Core data fetch ───────────────────────────────────────────────────────
+async function loadData(fileName, allowFallback) {
+  document.getElementById('loadBtn').disabled    = true;
+  document.getElementById('refreshBtn').disabled = true;
+  setStatus('loading', `Fetching "${fileName}" from SharePoint…`, true);
+
+  try {
+    const buffer = await fetchSPFile(fileName);
+    renderWorkbook(buffer, fileName);
+  } catch (err) {
+    // Fallback to last known good file
+    const lastFile = localStorage.getItem(KEY_LAST_FILE);
+    if (allowFallback && lastFile && lastFile !== fileName) {
+      setStatus('loading', `"${fileName}" not found — falling back to "${lastFile}"…`, true);
+      try {
+        const buffer = await fetchSPFile(lastFile);
+        renderWorkbook(buffer, lastFile,
+          `⚠️ Today's file not found. Showing data from "${lastFile}". Update base name if the series was renamed.`);
+      } catch (e2) {
+        setStatus('error', e2.message);
+      }
+    } else {
+      setStatus('error', err.message);
+    }
+  } finally {
+    document.getElementById('loadBtn').disabled    = false;
+    document.getElementById('refreshBtn').disabled = false;
+  }
+}
+
+async function fetchSPFile(fileName) {
+  const url = `${SP_SITE}/_api/web/GetFileByServerRelativeUrl('${SP_FOLDER}${encodeURIComponent(fileName)}')/$value`;
+  const r   = await fetch(url, { method:'GET', credentials:'include', headers:{ Accept:'application/octet-stream' } });
+  if (r.status===401||r.status===403) throw new Error('Access denied. Sign into Microsoft 365 in this browser, then refresh.');
+  if (r.status===404)                 throw new Error(`File not found: "${fileName}". Check the base name matches your SharePoint export.`);
+  if (!r.ok)                          throw new Error(`SharePoint error (HTTP ${r.status}). Please try again.`);
+  return r.arrayBuffer();
+}
+
+function renderWorkbook(buffer, fileName, warning) {
+  const wb    = XLSX.read(buffer, { type:'array', cellDates:true });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows  = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+  if (!rows.length) throw new Error('Excel file is empty.');
+
+  processAndRender(rows);
+
+  localStorage.setItem(KEY_LAST_FILE, fileName);
+  localStorage.setItem(KEY_LAST_DATE, todayISO());
+
+  const t = new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('lastUpdated').textContent = `Updated ${t} · ${fileName}`;
+
+  if (warning) setStatus('error', warning, false);
+  else         setStatus('success', `Loaded ${rows.length.toLocaleString()} rows from "${fileName}"`);
+}
+
+// ── Data processing ───────────────────────────────────────────────────────
+function isActive(row) {
+  // "Status" = col F (first occurrence); xlsx-js renames second to "Status_1"
+  const s = (row['Status'] || row['Status_1'] || '').toString().toLowerCase().trim();
+  return ACTIVE_STATUSES.some(a => s.includes(a));
+}
+
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  const d = new Date(v); return isNaN(d) ? null : d;
+}
+
+function countBy(rows, col) {
+  const m={};
+  rows.forEach(r=>{
+    const k=(r[col]||'(Blank)').toString().trim()||'(Blank)';
+    m[k]=(m[k]||0)+1;
+  });
+  return m;
+}
+
+function topN(map,n) {
+  const s=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  return { labels:s.map(e=>e[0]), values:s.map(e=>e[1]) };
+}
+
+function processAndRender(rows) {
+  const today    = new Date(); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+  const w1ago    = new Date(today); w1ago.setDate(today.getDate()-7);
+  const w2ago    = new Date(today); w2ago.setDate(today.getDate()-14);
+
+  const active   = rows.filter(isActive);
+  const noDate   = active.filter(r=>!parseDate(r[COL.suggestedDate]));
+  const overdue  = active.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d<today; });
+  const dueToday = active.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d>=today&&d<tomorrow; });
+
+  document.getElementById('kpi-active').textContent  = active.length.toLocaleString();
+  document.getElementById('kpi-nodate').textContent  = noDate.length.toLocaleString();
+  document.getElementById('kpi-overdue').textContent = overdue.length.toLocaleString();
+  document.getElementById('kpi-today').textContent   = dueToday.length.toLocaleString();
+
+  renderHBar('assignedChart', topN(countBy(active,   COL.assignedUsers),10), P_BLUE);
+  renderHBar('dueTodayChart', topN(countBy(dueToday, COL.assignedUsers),10), P_PURPLE);
+  renderPie('priorityChart',  'priorityLegend', countBy(active, COL.priority), P_PIE1);
+
+  const tf={
+    'Due Today':        dueToday.length,
+    'Due Over 2 Weeks': overdue.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d<w2ago; }).length,
+    '2 Weeks Ago':      overdue.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d>=w2ago&&d<w1ago; }).length,
+    '1 Week Ago':       overdue.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d>=w1ago&&d<today; }).length,
+  };
+  renderPie('timeframeChart','timeframeLegend', tf, P_PIE2);
+  renderHBar('typeChart', topN(countBy(active, COL.type),15), null, P_RED);
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────
+let charts={};
+function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+const GC='rgba(255,255,255,0.06)', LC='#7a8099', TF={family:'DM Mono',size:11};
+
+function renderHBar(id, {labels,values}, single, palette) {
+  destroyChart(id);
+  const ctx=document.getElementById(id); if(!ctx)return;
+  const bg=palette?palette.slice(0,values.length):values.map(()=>single);
+  charts[id]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data:values,backgroundColor:bg,borderRadius:3,borderSkipped:false}]},
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`  ${c.parsed.x.toLocaleString()}`}}},
+      scales:{
+        x:{grid:{color:GC},ticks:{color:LC,font:TF}},
+        y:{grid:{display:false},ticks:{color:LC,font:TF}}
+      }
+    }
+  });
+}
+
+function renderPie(cid, lid, dataMap, colors) {
+  destroyChart(cid);
+  const ctx=document.getElementById(cid), leg=document.getElementById(lid); if(!ctx)return;
+  const entries=Object.entries(dataMap).sort((a,b)=>b[1]-a[1]);
+  const labels=entries.map(e=>e[0]), values=entries.map(e=>e[1]);
+  const total=values.reduce((a,b)=>a+b,0);
+  const bg=colors.slice(0,labels.length);
+  charts[cid]=new Chart(ctx,{
+    type:'pie',
+    data:{labels,datasets:[{data:values,backgroundColor:bg,borderWidth:2,borderColor:'#181c27'}]},
+    options:{responsive:false,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed} (${Math.round(c.parsed/total*100)}%)`}}}}
+  });
+  leg.innerHTML='';
+  labels.forEach((l,i)=>{
+    const pct=total?Math.round(values[i]/total*100):0;
+    leg.innerHTML+=`<div class="legend-item">
+      <div class="legend-dot" style="background:${bg[i]}"></div>
+      <span>${l.length>20?l.slice(0,20)+'…':l}</span>
+      <span class="legend-val">${values[i]} <span style="color:var(--text-muted)">(${pct}%)</span></span>
+    </div>`;
+  });
+}
+</script>
+</body>
+</html>
