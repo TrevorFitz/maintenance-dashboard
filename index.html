@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <style>
   :root {
     --bg:#0f1117; --surface:#181c27; --surface2:#1e2333;
@@ -19,6 +20,7 @@
   html,body{height:100%}
   body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
 
+  /* ── Header ── */
   header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;
     border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100}
   .logo{display:flex;align-items:center;gap:10px}
@@ -27,9 +29,12 @@
     display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff}
   .logo-text{font-size:15px;font-weight:600;letter-spacing:-0.3px}
   .logo-sub{font-size:11px;color:var(--text-muted);margin-top:1px}
-  .header-right{display:flex;align-items:center;gap:12px}
+  .header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   #lastUpdated,#nextRefresh{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+  #userBadge{font-size:11px;color:var(--text-muted);font-family:var(--mono);
+    background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px}
 
+  /* ── Config bar ── */
   .config-bar{display:flex;align-items:center;gap:10px;padding:10px 28px;
     background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap}
   .config-bar label{font-size:12px;color:var(--text-muted);white-space:nowrap}
@@ -39,14 +44,19 @@
   .config-bar input:focus{border-color:var(--accent)}
   .filename-preview{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap;padding:0 4px}
 
+  /* ── Buttons ── */
   .btn{padding:7px 16px;border-radius:8px;border:none;font-family:var(--font);
     font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
   .btn-primary{background:var(--accent);color:#fff}
   .btn-primary:hover{background:#3a7de8}
   .btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
   .btn-ghost:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+  .btn-ms{background:#fff;color:#333;display:flex;align-items:center;gap:8px;padding:10px 20px;
+    font-size:14px;font-weight:500;border-radius:4px;border:1px solid #ddd}
+  .btn-ms:hover{background:#f5f5f5}
   .btn:disabled{opacity:.4;cursor:not-allowed}
 
+  /* ── Status banner ── */
   .status-banner{display:none;align-items:center;gap:10px;padding:10px 28px;font-size:13px}
   .status-banner.show{display:flex}
   .status-banner.loading{background:rgba(79,142,247,.1);color:var(--accent)}
@@ -56,6 +66,21 @@
     border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
+  /* ── Login screen ── */
+  #loginScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:80vh;gap:24px;text-align:center;padding:40px}
+  .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:40px 48px;max-width:420px;width:100%}
+  .login-logo{width:56px;height:56px;border-radius:14px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-size:22px;
+    font-weight:700;color:#fff;margin:0 auto 20px}
+  .login-title{font-size:20px;font-weight:600;margin-bottom:8px}
+  .login-sub{font-size:13px;color:var(--text-muted);margin-bottom:28px;line-height:1.6}
+  .ms-logo{width:20px;height:20px}
+
+  /* ── Main dashboard ── */
+  #dashboard{display:none}
   main{padding:24px 28px}
   .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
   .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -75,7 +100,7 @@
   .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
   .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
   .chart-card.full{grid-column:1/-1}
-  .chart-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:16px;letter-spacing:-.1px}
+  .chart-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:16px}
   .chart-wrap{position:relative}
   .pie-layout{display:flex;align-items:center;gap:20px}
   .pie-canvas-wrap{flex-shrink:0}
@@ -83,26 +108,6 @@
   .legend-item{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-muted)}
   .legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
   .legend-val{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text)}
-
-  /* Deployment modal */
-  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
-    z-index:200;align-items:center;justify-content:center}
-  .modal-overlay.show{display:flex}
-  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-    padding:28px 32px;max-width:640px;width:92%;max-height:88vh;overflow-y:auto}
-  .modal h2{font-size:17px;font-weight:600;margin-bottom:4px}
-  .modal-sub{font-size:12px;color:var(--text-muted);margin-bottom:22px}
-  .step{display:flex;gap:14px;margin-bottom:18px}
-  .step-num{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;
-    font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
-  .step-num.info{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-size:14px}
-  .step-body{flex:1}
-  .step-title{font-size:13px;font-weight:600;margin-bottom:5px}
-  .step-desc{font-size:12px;color:var(--text-muted);line-height:1.7}
-  .step-desc code{background:var(--surface2);border:1px solid var(--border);border-radius:4px;
-    padding:1px 6px;font-family:var(--mono);font-size:11px;color:var(--accent)}
-  .modal hr{border:none;border-top:1px solid var(--border);margin:18px 0}
-  .modal-close{margin-top:10px;width:100%}
 
   @media(max-width:900px){
     .kpi-row{grid-template-columns:1fr 1fr}
@@ -113,176 +118,120 @@
 </head>
 <body>
 
-<!-- ── Deployment guide modal ─────────────────────────────────────────── -->
-<div class="modal-overlay" id="deployModal">
-  <div class="modal">
-    <h2>🚀 Deploying to SharePoint</h2>
-    <div class="modal-sub">Follow these steps once to publish the dashboard as a live SharePoint page</div>
+<!-- ── Login Screen ───────────────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">PM</div>
+    <div class="login-title">PMG Maintenance Dashboard</div>
+    <div class="login-sub">Sign in with your Microsoft 365 account to load live data from SharePoint.</div>
+    <button class="btn btn-ms" onclick="signIn()" style="margin:0 auto">
+      <svg class="ms-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21">
+        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      Sign in with Microsoft
+    </button>
+  </div>
+</div>
 
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">Upload this HTML file to SharePoint</div>
-        <div class="step-desc">Go to your SharePoint site → open any Document Library (e.g. <strong>Documents</strong>) → click <strong>Upload → Files</strong> → select <code>maintenance_dashboard.html</code>.</div>
+<!-- ── Dashboard (shown after login) ─────────────────────────────────── -->
+<div id="dashboard">
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">PM</div>
+      <div>
+        <div class="logo-text">PMG Maintenance</div>
+        <div class="logo-sub">Work Order Dashboard</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="userBadge"></span>
+      <span id="lastUpdated">Not loaded</span>
+      <span id="nextRefresh"></span>
+      <button class="btn btn-ghost" onclick="manualRefresh()" id="refreshBtn">↻ Refresh</button>
+      <button class="btn btn-ghost" onclick="signOut()">Sign out</button>
+    </div>
+  </header>
+
+  <div class="config-bar">
+    <label for="baseNameInput">Base filename:</label>
+    <input type="text" id="baseNameInput" value="WorkOrdersAdministration"
+      placeholder="e.g. WorkOrdersAdministration"
+      title="The filename without the date or .xlsx extension" />
+    <span style="font-size:12px;color:var(--text-muted)">→ today's file:</span>
+    <span class="filename-preview" id="filenamePreview"></span>
+    <button class="btn btn-primary" onclick="saveAndLoad()" id="loadBtn">Save &amp; Load</button>
+    <span style="font-size:11px;color:var(--text-muted)">💡 Update only when the file series name changes</span>
+  </div>
+
+  <div class="status-banner" id="statusBanner">
+    <div class="spinner" id="statusSpinner" style="display:none"></div>
+    <span id="statusText"></span>
+  </div>
+
+  <main>
+    <div class="kpi-row">
+      <div class="kpi-card active">  <div class="kpi-num" id="kpi-active">—</div><div class="kpi-label">Active</div></div>
+      <div class="kpi-card nodate">  <div class="kpi-num" id="kpi-nodate">—</div><div class="kpi-label">No Due Date</div></div>
+      <div class="kpi-card overdue"> <div class="kpi-num" id="kpi-overdue">—</div><div class="kpi-label">Overdue</div></div>
+      <div class="kpi-card duetoday"><div class="kpi-num" id="kpi-today">—</div>  <div class="kpi-label">Items Due Today</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Active by Assigned Users</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="assignedChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Items Due Today by Assigned Users</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="dueTodayChart"></canvas></div>
       </div>
     </div>
 
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <div class="step-title">Get the file's direct URL</div>
-        <div class="step-desc">Click the three dots (···) next to the uploaded file → <strong>Copy link</strong>. Remove any <code>?web=1</code> query string from the end. The URL should end in <code>.html</code>.</div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Active by Priority</div>
+        <div class="pie-layout">
+          <div class="pie-canvas-wrap"><canvas id="priorityChart" width="180" height="180"></canvas></div>
+          <div class="legend" id="priorityLegend"></div>
+        </div>
       </div>
-    </div>
-
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <div class="step-title">Create or edit a SharePoint page</div>
-        <div class="step-desc">Go to <strong>Pages</strong> in your site → click <strong>New → Page</strong> (or open an existing page and click <strong>Edit</strong>). Name it something like <em>Maintenance Dashboard</em>.</div>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">
-        <div class="step-title">Add an Embed web part</div>
-        <div class="step-desc">Click the <strong>+</strong> to add a web part → search for <strong>Embed</strong> → select it. Paste the HTML file URL from Step 2 into the embed field. Stretch it to full width and set the height to at least <code>900px</code>.</div>
-      </div>
-    </div>
-
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">
-        <div class="step-title">Publish the page</div>
-        <div class="step-desc">Click <strong>Publish</strong> (top right). The dashboard is now live. Anyone with SharePoint access can view it — it uses their existing Microsoft 365 login automatically, no separate sign-in needed.</div>
-      </div>
-    </div>
-
-    <hr />
-
-    <div class="step">
-      <div class="step-num info">⟳</div>
-      <div class="step-body">
-        <div class="step-title">How auto-refresh works</div>
-        <div class="step-desc">
-          The dashboard auto-refreshes at <strong>07:00 SAST every day</strong> and also when the page is first opened. It builds today's filename automatically — e.g. <code>WorkOrdersAdministration (15 May).xlsx</code>. If that file isn't found (because you haven't exported today yet), it falls back to the last successfully loaded file and shows a warning.
+      <div class="chart-card">
+        <div class="chart-title">Overdue by Timeframe</div>
+        <div class="pie-layout">
+          <div class="pie-canvas-wrap"><canvas id="timeframeChart" width="180" height="180"></canvas></div>
+          <div class="legend" id="timeframeLegend"></div>
         </div>
       </div>
     </div>
 
-    <div class="step">
-      <div class="step-num info">✏️</div>
-      <div class="step-body">
-        <div class="step-title">Updating the file series name</div>
-        <div class="step-desc">
-          When you rename your export series (e.g. changing from <code>WorkOrdersAdministration</code> to something else), simply update the <strong>Base filename</strong> field at the top of the dashboard and click <strong>Save &amp; Load</strong>. The new name is remembered and all future auto-refreshes will use it. You never need to re-upload or edit the HTML file.
-        </div>
+    <div class="charts-row">
+      <div class="chart-card full">
+        <div class="chart-title">Active by Type</div>
+        <div class="chart-wrap" style="height:340px"><canvas id="typeChart"></canvas></div>
       </div>
     </div>
+  </main>
 
-    <button class="btn btn-primary modal-close" onclick="document.getElementById('deployModal').classList.remove('show')">Got it — close guide</button>
-  </div>
-</div>
-
-<!-- ── Header ─────────────────────────────────────────────────────────── -->
-<header>
-  <div class="logo">
-    <div class="logo-mark">PM</div>
-    <div>
-      <div class="logo-text">PMG Maintenance</div>
-      <div class="logo-sub">Work Order Dashboard</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <span id="lastUpdated">Not loaded</span>
-    <span id="nextRefresh"></span>
-    <button class="btn btn-ghost" onclick="document.getElementById('deployModal').classList.add('show')">📋 Deploy guide</button>
-    <button class="btn btn-ghost" onclick="manualRefresh()" id="refreshBtn">↻ Refresh</button>
-  </div>
-</header>
-
-<!-- ── Config bar ─────────────────────────────────────────────────────── -->
-<div class="config-bar">
-  <label for="baseNameInput">Base filename:</label>
-  <input type="text" id="baseNameInput" value="WorkOrdersAdministration"
-    placeholder="e.g. WorkOrdersAdministration"
-    title="The part of the filename before the date. Do not include the date or .xlsx" />
-  <span style="font-size:12px;color:var(--text-muted)">→ today's file:</span>
-  <span class="filename-preview" id="filenamePreview"></span>
-  <button class="btn btn-primary" onclick="saveAndLoad()" id="loadBtn">Save &amp; Load</button>
-  <span style="font-size:11px;color:var(--text-muted)">💡 Update only when the file series name changes</span>
-</div>
-
-<!-- ── Status banner ──────────────────────────────────────────────────── -->
-<div class="status-banner" id="statusBanner">
-  <div class="spinner" id="statusSpinner" style="display:none"></div>
-  <span id="statusText"></span>
-</div>
-
-<!-- ── Dashboard ──────────────────────────────────────────────────────── -->
-<main>
-  <div class="kpi-row">
-    <div class="kpi-card active">  <div class="kpi-num" id="kpi-active">—</div><div class="kpi-label">Active</div></div>
-    <div class="kpi-card nodate">  <div class="kpi-num" id="kpi-nodate">—</div><div class="kpi-label">No Due Date</div></div>
-    <div class="kpi-card overdue"> <div class="kpi-num" id="kpi-overdue">—</div><div class="kpi-label">Overdue</div></div>
-    <div class="kpi-card duetoday"><div class="kpi-num" id="kpi-today">—</div>  <div class="kpi-label">Items Due Today</div></div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card">
-      <div class="chart-title">Active by Assigned Users</div>
-      <div class="chart-wrap" style="height:260px"><canvas id="assignedChart"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Items Due Today by Assigned Users</div>
-      <div class="chart-wrap" style="height:260px"><canvas id="dueTodayChart"></canvas></div>
-    </div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card">
-      <div class="chart-title">Active by Priority</div>
-      <div class="pie-layout">
-        <div class="pie-canvas-wrap"><canvas id="priorityChart" width="180" height="180"></canvas></div>
-        <div class="legend" id="priorityLegend"></div>
-      </div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Overdue by Timeframe</div>
-      <div class="pie-layout">
-        <div class="pie-canvas-wrap"><canvas id="timeframeChart" width="180" height="180"></canvas></div>
-        <div class="legend" id="timeframeLegend"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="charts-row">
-    <div class="chart-card full">
-      <div class="chart-title">Active by Type</div>
-      <div class="chart-wrap" style="height:340px"><canvas id="typeChart"></canvas></div>
-    </div>
-  </div>
-</main>
+</div><!-- end #dashboard -->
 
 <script>
-// ── SharePoint paths ──────────────────────────────────────────────────────
-const SP_SITE   = 'https://pimms.sharepoint.com/sites/PMGSharePoint';
-const SP_FOLDER = '/sites/PMGSharePoint/Shared Documents/Power BI Reports/Maintenance Reports (Fiix)/Fiix Exports/';
+// ═══════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════
+const CLIENT_ID   = 'f1039e4f-402a-4df2-9d0f-1261c2d4624e';
+const TENANT_ID   = 'common'; // works for any Microsoft 365 org account
+const SP_HOSTNAME = 'pimms.sharepoint.com';
+const SP_SITE_PATH= '/sites/PMGSharePoint';
+const SP_FOLDER   = 'Shared Documents/Power BI Reports/Maintenance Reports (Fiix)/Fiix Exports';
 
-// ── localStorage keys ─────────────────────────────────────────────────────
-const KEY_BASE      = 'pmg_basename';       // saved base filename
-const KEY_LAST_FILE = 'pmg_last_file';      // last successfully loaded full filename
-const KEY_LAST_DATE = 'pmg_last_load_date'; // date of last successful load (YYYY-MM-DD)
+// Graph API scopes needed
+const SCOPES = ['Files.Read.All', 'Sites.Read.All'];
 
-// ── Column names (exact Excel headers) ───────────────────────────────────
-// Excel columns in order:
-// Description | Code | Date Created | Priority | Assets | Status |
-// Assigned Users | Completed By Users | Type | Origin Work Order |
-// Task | Status | Time Estimated Hours | Time Spent Hours | Cause |
-// Suggested Completion Date
-//
-// Note: "Status" appears twice (cols F and L). xlsx-js names the second one "Status_1".
+// Column names (exact Excel headers)
 const COL = {
   status:        'Status',
   assignedUsers: 'Assigned Users',
@@ -291,70 +240,127 @@ const COL = {
   type:          'Type',
 };
 
-// Statuses that count as "Active" — add more if needed
+// Active statuses — add more if needed
 const ACTIVE_STATUSES = ['open','in progress','active','assigned','pending','work requested','in-progress'];
 
-// ── Colour palettes ───────────────────────────────────────────────────────
+// localStorage keys
+const KEY_BASE      = 'pmg_basename';
+const KEY_LAST_FILE = 'pmg_last_file';
+const KEY_LAST_DATE = 'pmg_last_load_date';
+
+// Colour palettes
 const P_BLUE   = '#4f8ef7';
 const P_PURPLE = '#a259f7';
 const P_PIE1   = ['#4f8ef7','#7f8fa6','#f7a25a','#a259f7','#ffc000','#3ecf8e','#f75a5a','#54d2d2'];
 const P_PIE2   = ['#4f8ef7','#1a4fa0','#f7a25a','#a259f7'];
-const P_RED    = ['#f75a5a','#d63a3a','#ff8080','#ff4040','#c02020','#ff9090','#b01010',
-                  '#ff6060','#e05050','#ff7070','#cc3030','#ffa0a0'];
+const P_RED    = ['#f75a5a','#d63a3a','#ff8080','#ff4040','#c02020','#ff9090',
+                  '#b01010','#ff6060','#e05050','#ff7070','#cc3030','#ffa0a0'];
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// MSAL SETUP
+// ═══════════════════════════════════════════════════════════════════
+const msalConfig = {
+  auth: {
+    clientId: CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+    redirectUri: window.location.href.split('?')[0].split('#')[0],
+  },
+  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+async function initAuth() {
+  // Handle redirect response (called on every page load)
+  try {
+    const response = await msalInstance.handleRedirectPromise();
+    if (response) {
+      onSignedIn(response.account);
+      return;
+    }
+  } catch(e) { console.error('Redirect error', e); }
+
+  // Check if already signed in
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    onSignedIn(accounts[0]);
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+}
+
+async function signIn() {
+  try {
+    await msalInstance.loginRedirect({ scopes: SCOPES });
+  } catch(e) {
+    alert('Sign-in failed: ' + e.message);
+  }
+}
+
+function signOut() {
+  msalInstance.logoutRedirect();
+}
+
+function onSignedIn(account) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display   = 'block';
+  document.getElementById('userBadge').textContent = account.name || account.username;
+
+  // Restore saved base name
+  const saved = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
+  document.getElementById('baseNameInput').value = saved;
+  updatePreview();
+
+  // Auto-load if not loaded today
+  if (localStorage.getItem(KEY_LAST_DATE) !== todayISO()) {
+    triggerAutoRefresh();
+  }
+
+  scheduleAutoRefresh();
+  updateCountdown();
+  setInterval(updateCountdown, 60000);
+}
+
+async function getToken() {
+  const accounts = msalInstance.getAllAccounts();
+  if (!accounts.length) throw new Error('Not signed in.');
+  const req = { scopes: SCOPES, account: accounts[0] };
+  try {
+    const res = await msalInstance.acquireTokenSilent(req);
+    return res.accessToken;
+  } catch(e) {
+    // Silent failed — try interactive
+    const res = await msalInstance.acquireTokenPopup(req);
+    return res.accessToken;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DATE & FILENAME HELPERS
+// ═══════════════════════════════════════════════════════════════════
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function todayLabel(d) {
-  // "15 May" — matches your file naming convention
-  return (d||new Date()).toLocaleDateString('en-ZA', { day:'numeric', month:'short' });
+  return (d||new Date()).toLocaleDateString('en-ZA',{day:'numeric',month:'short'});
 }
 
 function buildFileName(base, date) {
   return `${base} (${todayLabel(date)}).xlsx`;
 }
 
-// ── Filename preview (config bar) ─────────────────────────────────────────
 function updatePreview() {
   const base = document.getElementById('baseNameInput').value.trim();
   document.getElementById('filenamePreview').textContent = base ? buildFileName(base) : '—';
 }
+
 document.getElementById('baseNameInput').addEventListener('input', updatePreview);
 
-// ── Restore saved base name on load ──────────────────────────────────────
-(function restoreState() {
-  const saved = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
-  document.getElementById('baseNameInput').value = saved;
-  updatePreview();
-})();
-
-// ── Save & Load (triggered by button) ────────────────────────────────────
-function saveAndLoad() {
-  const base = document.getElementById('baseNameInput').value.trim();
-  if (!base) { setStatus('error', 'Please enter a base filename.'); return; }
-  localStorage.setItem(KEY_BASE, base);
-  loadData(buildFileName(base));
-}
-
-// ── Manual refresh (↻ button) ─────────────────────────────────────────────
-function manualRefresh() {
-  const base = localStorage.getItem(KEY_BASE) || document.getElementById('baseNameInput').value.trim();
-  loadData(buildFileName(base), /*allowFallback=*/true);
-}
-
-// ── Status banner ─────────────────────────────────────────────────────────
-function setStatus(type, msg, persist) {
-  const banner = document.getElementById('statusBanner');
-  document.getElementById('statusText').textContent = msg;
-  document.getElementById('statusSpinner').style.display = type==='loading' ? 'block' : 'none';
-  banner.className = 'status-banner show ' + type;
-  if (!persist && type !== 'loading') setTimeout(()=>banner.classList.remove('show'), 7000);
-}
-
-// ── Countdown to next auto-refresh ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// AUTO-REFRESH SCHEDULER
+// ═══════════════════════════════════════════════════════════════════
 function updateCountdown() {
   const now  = new Date();
   const next = new Date(); next.setHours(7,0,0,0);
@@ -363,10 +369,7 @@ function updateCountdown() {
   document.getElementById('nextRefresh').textContent =
     `Auto-refresh in ${Math.floor(diff/60)}h ${diff%60}m`;
 }
-updateCountdown();
-setInterval(updateCountdown, 60000);
 
-// ── Auto-refresh scheduler (07:00 SAST daily) ─────────────────────────────
 function scheduleAutoRefresh() {
   const now  = new Date();
   const next = new Date(); next.setHours(7,0,0,0);
@@ -379,38 +382,56 @@ function scheduleAutoRefresh() {
 
 function triggerAutoRefresh() {
   const base = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
-  loadData(buildFileName(base), /*allowFallback=*/true);
+  loadData(buildFileName(base), true);
 }
 
-scheduleAutoRefresh();
+// ═══════════════════════════════════════════════════════════════════
+// MANUAL CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+function saveAndLoad() {
+  const base = document.getElementById('baseNameInput').value.trim();
+  if (!base) { setStatus('error','Please enter a base filename.'); return; }
+  localStorage.setItem(KEY_BASE, base);
+  updatePreview();
+  loadData(buildFileName(base));
+}
 
-// ── Auto-load on page open (if not already loaded today) ──────────────────
-(function autoLoadOnOpen() {
-  if (localStorage.getItem(KEY_LAST_DATE) !== todayISO()) {
-    const base = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
-    loadData(buildFileName(base), /*allowFallback=*/true);
-  }
-})();
+function manualRefresh() {
+  const base = localStorage.getItem(KEY_BASE) || document.getElementById('baseNameInput').value.trim();
+  loadData(buildFileName(base), true);
+}
 
-// ── Core data fetch ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// STATUS BANNER
+// ═══════════════════════════════════════════════════════════════════
+function setStatus(type, msg, persist) {
+  const banner = document.getElementById('statusBanner');
+  document.getElementById('statusText').textContent = msg;
+  document.getElementById('statusSpinner').style.display = type==='loading'?'block':'none';
+  banner.className = 'status-banner show ' + type;
+  if (!persist && type!=='loading') setTimeout(()=>banner.classList.remove('show'), 7000);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DATA FETCH VIA MICROSOFT GRAPH
+// ═══════════════════════════════════════════════════════════════════
 async function loadData(fileName, allowFallback) {
   document.getElementById('loadBtn').disabled    = true;
   document.getElementById('refreshBtn').disabled = true;
   setStatus('loading', `Fetching "${fileName}" from SharePoint…`, true);
 
   try {
-    const buffer = await fetchSPFile(fileName);
+    const buffer = await fetchViaGraph(fileName);
     renderWorkbook(buffer, fileName);
-  } catch (err) {
-    // Fallback to last known good file
+  } catch(err) {
     const lastFile = localStorage.getItem(KEY_LAST_FILE);
     if (allowFallback && lastFile && lastFile !== fileName) {
-      setStatus('loading', `"${fileName}" not found — falling back to "${lastFile}"…`, true);
+      setStatus('loading', `"${fileName}" not found — trying last known file: "${lastFile}"…`, true);
       try {
-        const buffer = await fetchSPFile(lastFile);
+        const buffer = await fetchViaGraph(lastFile);
         renderWorkbook(buffer, lastFile,
           `⚠️ Today's file not found. Showing data from "${lastFile}". Update base name if the series was renamed.`);
-      } catch (e2) {
+      } catch(e2) {
         setStatus('error', e2.message);
       }
     } else {
@@ -422,20 +443,40 @@ async function loadData(fileName, allowFallback) {
   }
 }
 
-async function fetchSPFile(fileName) {
-  const url = `${SP_SITE}/_api/web/GetFileByServerRelativeUrl('${SP_FOLDER}${encodeURIComponent(fileName)}')/$value`;
-  const r   = await fetch(url, { method:'GET', credentials:'include', headers:{ Accept:'application/octet-stream' } });
-  if (r.status===401||r.status===403) throw new Error('Access denied. Sign into Microsoft 365 in this browser, then refresh.');
-  if (r.status===404)                 throw new Error(`File not found: "${fileName}". Check the base name matches your SharePoint export.`);
-  if (!r.ok)                          throw new Error(`SharePoint error (HTTP ${r.status}). Please try again.`);
-  return r.arrayBuffer();
+async function fetchViaGraph(fileName) {
+  const token = await getToken();
+
+  // Step 1: get the SharePoint site ID
+  const siteRes = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!siteRes.ok) throw new Error(`Could not access SharePoint site (${siteRes.status}). Check permissions.`);
+  const site = await siteRes.json();
+  const siteId = site.id;
+
+  // Step 2: get the file content via its path
+  const filePath = `${SP_FOLDER}/${fileName}`;
+  const fileRes  = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${encodeURIComponent(filePath)}:/content`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  if (fileRes.status === 404) throw new Error(`File not found: "${fileName}". Check the base name matches your SharePoint export.`);
+  if (fileRes.status === 403) throw new Error('Access denied. Your account may not have permission to this file.');
+  if (!fileRes.ok)            throw new Error(`Graph API error (${fileRes.status}) fetching file.`);
+
+  return fileRes.arrayBuffer();
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// WORKBOOK RENDER
+// ═══════════════════════════════════════════════════════════════════
 function renderWorkbook(buffer, fileName, warning) {
   const wb    = XLSX.read(buffer, { type:'array', cellDates:true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows  = XLSX.utils.sheet_to_json(sheet, { defval:'' });
-  if (!rows.length) throw new Error('Excel file is empty.');
+  if (!rows.length) throw new Error('Excel file appears to be empty.');
 
   processAndRender(rows);
 
@@ -445,14 +486,17 @@ function renderWorkbook(buffer, fileName, warning) {
   const t = new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});
   document.getElementById('lastUpdated').textContent = `Updated ${t} · ${fileName}`;
 
-  if (warning) setStatus('error', warning, false);
+  if (warning) setStatus('error', warning);
   else         setStatus('success', `Loaded ${rows.length.toLocaleString()} rows from "${fileName}"`);
 }
 
-// ── Data processing ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// DATA PROCESSING
+// ═══════════════════════════════════════════════════════════════════
 function isActive(row) {
-  // "Status" = col F (first occurrence); xlsx-js renames second to "Status_1"
-  const s = (row['Status'] || row['Status_1'] || '').toString().toLowerCase().trim();
+  // "Status" appears twice in the Excel (cols F and L).
+  // xlsx-js names the second one "Status_1". We use column F (first Status).
+  const s = (row['Status'] || '').toString().toLowerCase().trim();
   return ACTIVE_STATUSES.some(a => s.includes(a));
 }
 
@@ -471,7 +515,7 @@ function countBy(rows, col) {
   return m;
 }
 
-function topN(map,n) {
+function topN(map, n) {
   const s=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
   return { labels:s.map(e=>e[0]), values:s.map(e=>e[1]) };
 }
@@ -506,7 +550,9 @@ function processAndRender(rows) {
   renderHBar('typeChart', topN(countBy(active, COL.type),15), null, P_RED);
 }
 
-// ── Chart helpers ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// CHART HELPERS
+// ═══════════════════════════════════════════════════════════════════
 let charts={};
 function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
 const GC='rgba(255,255,255,0.06)', LC='#7a8099', TF={family:'DM Mono',size:11};
@@ -552,6 +598,11 @@ function renderPie(cid, lid, dataMap, colors) {
     </div>`;
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════
+initAuth();
 </script>
 </body>
 </html>
