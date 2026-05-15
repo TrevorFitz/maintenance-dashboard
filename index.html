@@ -65,7 +65,7 @@
     min-height:90vh;gap:24px;text-align:center;padding:40px}
   #loginScreen.show{display:flex}
   .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-    padding:40px 48px;max-width:420px;width:100%}
+    padding:40px 48px;max-width:440px;width:100%}
   .login-logo{width:56px;height:56px;border-radius:14px;
     background:linear-gradient(135deg,var(--accent),var(--accent2));
     display:flex;align-items:center;justify-content:center;font-size:22px;
@@ -74,20 +74,16 @@
   .login-sub{font-size:13px;color:var(--text-muted);margin-bottom:28px;line-height:1.6}
   .btn-ms{background:#fff;color:#333;display:flex;align-items:center;gap:10px;
     padding:12px 24px;font-size:14px;font-weight:500;border-radius:4px;
-    border:1px solid #ddd;cursor:pointer;margin:0 auto;font-family:var(--font)}
+    border:1px solid #ddd;cursor:pointer;margin:0 auto;font-family:var(--font);
+    transition:background .15s}
   .btn-ms:hover{background:#f0f0f0}
-  .login-error{font-size:12px;color:var(--danger);margin-top:14px;display:none}
-
-  /* Loading splash */
-  #loadingSplash{display:flex;flex-direction:column;align-items:center;justify-content:center;
-    min-height:90vh;gap:16px;color:var(--text-muted);font-size:13px}
-  #loadingSplash .big-spinner{width:36px;height:36px;border:3px solid var(--border);
-    border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+  .btn-ms:disabled{opacity:.5;cursor:not-allowed}
+  .login-msg{font-size:12px;margin-top:14px;min-height:18px;line-height:1.5}
+  .login-msg.error{color:var(--danger)}
+  .login-msg.info{color:var(--text-muted)}
 
   /* Dashboard */
   #dashboard{display:none}
-
-  /* KPI */
   main{padding:24px 28px}
   .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
   .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -104,7 +100,6 @@
   .kpi-card.duetoday .kpi-num{color:var(--warning)}
   .kpi-label{font-size:12px;color:var(--text-muted);margin-top:8px;letter-spacing:.3px}
 
-  /* Charts */
   .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
   .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
   .chart-card.full{grid-column:1/-1}
@@ -126,13 +121,7 @@
 </head>
 <body>
 
-<!-- Loading splash shown while MSAL initialises -->
-<div id="loadingSplash">
-  <div class="big-spinner"></div>
-  <span>Loading…</span>
-</div>
-
-<!-- Login screen -->
+<!-- Login screen — shown by default, JS reveals it after init -->
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-logo">PM</div>
@@ -147,11 +136,11 @@
       </svg>
       Sign in with Microsoft
     </button>
-    <div class="login-error" id="loginError"></div>
+    <div class="login-msg" id="loginMsg"></div>
   </div>
 </div>
 
-<!-- Dashboard -->
+<!-- Dashboard — hidden until signed in -->
 <div id="dashboard">
   <header>
     <div class="logo">
@@ -172,8 +161,7 @@
 
   <div class="config-bar">
     <label for="baseNameInput">Base filename:</label>
-    <input type="text" id="baseNameInput" value="WorkOrdersAdministration"
-      placeholder="e.g. WorkOrdersAdministration" />
+    <input type="text" id="baseNameInput" value="WorkOrdersAdministration" placeholder="e.g. WorkOrdersAdministration" />
     <span style="font-size:12px;color:var(--text-muted)">→ today's file:</span>
     <span class="filename-preview" id="filenamePreview"></span>
     <button class="btn btn-primary" id="loadBtn">Save &amp; Load</button>
@@ -227,24 +215,18 @@
   </main>
 </div>
 
-<!-- Load Chart.js and XLSX first, then MSAL, then our app -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"
-  onload="appInit()" onerror="showFatalError('Failed to load Microsoft auth library. Check your internet connection.')">
-</script>
-
 <script>
-// ═══════════════════════════════════════════════════════════════════
-// CONFIG — edit these if anything changes
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
 const CLIENT_ID    = 'f1039e4f-402a-4df2-9d0f-1261c2d4624e';
 const TENANT_ID    = 'common';
 const SP_HOSTNAME  = 'pimms.sharepoint.com';
 const SP_SITE_PATH = '/sites/PMGSharePoint';
 const SP_FOLDER    = 'Shared Documents/Power BI Reports/Maintenance Reports (Fiix)/Fiix Exports';
-
-const SCOPES = ['Files.Read.All', 'Sites.Read.All'];
+const SCOPES       = ['Files.Read.All','Sites.Read.All'];
 
 const COL = {
   status:        'Status',
@@ -253,7 +235,6 @@ const COL = {
   priority:      'Priority',
   type:          'Type',
 };
-
 const ACTIVE_STATUSES = ['open','in progress','in-progress','active','assigned','pending','work requested'];
 
 const KEY_BASE      = 'pmg_basename';
@@ -267,85 +248,106 @@ const P_PIE2   = ['#4f8ef7','#1a4fa0','#f7a25a','#a259f7'];
 const P_RED    = ['#f75a5a','#d63a3a','#ff8080','#ff4040','#c02020','#ff9090',
                   '#b01010','#ff6060','#e05050','#ff7070','#cc3030','#ffa0a0'];
 
-// ═══════════════════════════════════════════════════════════════════
-// MSAL — initialised only after library loads (onload callback)
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// MSAL — loaded dynamically so we control timing precisely
+// ═══════════════════════════════════════════════════════════════
 let msalInstance = null;
 
-function appInit() {
-  // MSAL script has loaded — safe to initialise now
-  const redirectUri = window.location.origin + window.location.pathname;
+function loadMsal() {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js';
+    script.onload  = () => resolve();
+    script.onerror = () => reject(new Error('Could not load Microsoft auth library. Check your internet connection.'));
+    document.head.appendChild(script);
 
-  msalInstance = new msal.PublicClientApplication({
-    auth: {
-      clientId:    CLIENT_ID,
-      authority:   `https://login.microsoftonline.com/${TENANT_ID}`,
-      redirectUri: redirectUri,
-    },
-    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
+    // Safety timeout — if MSAL hasn't loaded in 10s, show login anyway
+    setTimeout(() => reject(new Error('Microsoft auth library timed out loading.')), 10000);
   });
+}
 
-  // Wire up UI buttons after MSAL is ready
-  document.getElementById('signInBtn').addEventListener('click',  handleSignIn);
-  document.getElementById('signOutBtn').addEventListener('click', handleSignOut);
-  document.getElementById('refreshBtn').addEventListener('click', manualRefresh);
-  document.getElementById('loadBtn').addEventListener('click',    saveAndLoad);
-  document.getElementById('baseNameInput').addEventListener('input', updatePreview);
+async function startApp() {
+  // Show login screen immediately — don't make user stare at blank page
+  showLogin();
+
+  try {
+    await loadMsal();
+  } catch(err) {
+    setLoginMsg(err.message, 'error');
+    return;
+  }
+
+  try {
+    const redirectUri = window.location.origin + window.location.pathname;
+    msalInstance = new msal.PublicClientApplication({
+      auth: {
+        clientId:    CLIENT_ID,
+        authority:   `https://login.microsoftonline.com/${TENANT_ID}`,
+        redirectUri: redirectUri,
+      },
+      cache: { cacheLocation:'localStorage', storeAuthStateInCookie:true }
+    });
+
+    // Handle the redirect back from Microsoft login
+    const response = await msalInstance.handleRedirectPromise();
+    if (response && response.account) {
+      onSignedIn(response.account);
+      return;
+    }
+
+    // Check if already signed in from a previous session
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      onSignedIn(accounts[0]);
+      return;
+    }
+
+    // Not signed in — show login screen (already showing, just clear any message)
+    setLoginMsg('', '');
+
+  } catch(err) {
+    console.error('MSAL init error:', err);
+    setLoginMsg('Initialisation error: ' + err.message, 'error');
+  }
+}
+
+function showLogin(msg, type) {
+  document.getElementById('loginScreen').classList.add('show');
+  document.getElementById('dashboard').style.display = 'none';
+  if (msg) setLoginMsg(msg, type || 'error');
+
+  // Wire sign-in button
+  const btn = document.getElementById('signInBtn');
+  btn.onclick = handleSignIn;
+}
+
+function setLoginMsg(msg, type) {
+  const el = document.getElementById('loginMsg');
+  el.textContent  = msg;
+  el.className    = 'login-msg' + (type ? ' ' + type : '');
+}
+
+function onSignedIn(account) {
+  document.getElementById('loginScreen').classList.remove('show');
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('userBadge').textContent   = account.name || account.username;
 
   // Restore saved base name
   const saved = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
   document.getElementById('baseNameInput').value = saved;
   updatePreview();
 
-  // Handle redirect from Microsoft login
-  msalInstance.handleRedirectPromise()
-    .then(response => {
-      if (response && response.account) {
-        onSignedIn(response.account);
-      } else {
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-          onSignedIn(accounts[0]);
-        } else {
-          showLogin();
-        }
-      }
-    })
-    .catch(err => {
-      console.error('MSAL redirect error:', err);
-      showLogin('Sign-in error: ' + err.message);
-    });
-}
-
-function showFatalError(msg) {
-  document.getElementById('loadingSplash').innerHTML =
-    `<div style="color:var(--danger);text-align:center;padding:40px;max-width:400px">
-      <div style="font-size:24px;margin-bottom:12px">⚠️</div>
-      <div style="font-size:14px">${msg}</div>
-    </div>`;
-}
-
-function showLogin(errMsg) {
-  document.getElementById('loadingSplash').style.display = 'none';
-  document.getElementById('loginScreen').classList.add('show');
-  if (errMsg) {
-    const el = document.getElementById('loginError');
-    el.textContent = errMsg;
-    el.style.display = 'block';
-  }
-}
-
-function onSignedIn(account) {
-  document.getElementById('loadingSplash').style.display = 'none';
-  document.getElementById('loginScreen').classList.remove('show');
-  document.getElementById('dashboard').style.display = 'block';
-  document.getElementById('userBadge').textContent = account.name || account.username;
+  // Wire dashboard buttons
+  document.getElementById('signOutBtn').onclick  = () => msalInstance.logoutRedirect();
+  document.getElementById('refreshBtn').onclick  = manualRefresh;
+  document.getElementById('loadBtn').onclick     = saveAndLoad;
+  document.getElementById('baseNameInput').addEventListener('input', updatePreview);
 
   updateCountdown();
   setInterval(updateCountdown, 60000);
   scheduleAutoRefresh();
 
-  // Auto-load on open if not loaded today
+  // Load data if not done today
   if (localStorage.getItem(KEY_LAST_DATE) !== todayISO()) {
     const base = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
     loadData(buildFileName(base), true);
@@ -353,140 +355,123 @@ function onSignedIn(account) {
 }
 
 async function handleSignIn() {
+  if (!msalInstance) { setLoginMsg('Auth library not ready. Please refresh the page.', 'error'); return; }
+  const btn = document.getElementById('signInBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Redirecting to Microsoft…';
+  setLoginMsg('You will be redirected to sign in…', 'info');
   try {
-    document.getElementById('signInBtn').disabled = true;
-    document.getElementById('signInBtn').textContent = 'Redirecting…';
     await msalInstance.loginRedirect({ scopes: SCOPES });
   } catch(err) {
-    document.getElementById('signInBtn').disabled = false;
-    document.getElementById('signInBtn').innerHTML = `
-      <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21">
-        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-      </svg>
-      Sign in with Microsoft`;
-    showLogin('Sign-in failed: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+    </svg> Sign in with Microsoft`;
+    setLoginMsg('Sign-in failed: ' + err.message, 'error');
   }
-}
-
-function handleSignOut() {
-  msalInstance.logoutRedirect();
 }
 
 async function getToken() {
   const accounts = msalInstance.getAllAccounts();
   if (!accounts.length) throw new Error('Not signed in.');
   try {
-    const res = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
+    const res = await msalInstance.acquireTokenSilent({ scopes:SCOPES, account:accounts[0] });
     return res.accessToken;
   } catch(e) {
-    const res = await msalInstance.acquireTokenPopup({ scopes: SCOPES, account: accounts[0] });
+    const res = await msalInstance.acquireTokenPopup({ scopes:SCOPES, account:accounts[0] });
     return res.accessToken;
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// DATE & FILENAME HELPERS
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// DATE & FILENAME
+// ═══════════════════════════════════════════════════════════════
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-
 function todayLabel(d) {
-  return (d || new Date()).toLocaleDateString('en-ZA', { day:'numeric', month:'short' });
+  return (d||new Date()).toLocaleDateString('en-ZA',{day:'numeric',month:'short'});
 }
-
 function buildFileName(base, date) {
   return `${base} (${todayLabel(date)}).xlsx`;
 }
-
 function updatePreview() {
   const base = document.getElementById('baseNameInput').value.trim();
   document.getElementById('filenamePreview').textContent = base ? buildFileName(base) : '—';
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // AUTO-REFRESH
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 function updateCountdown() {
-  const now  = new Date();
-  const next = new Date(); next.setHours(7,0,0,0);
+  const now = new Date(), next = new Date();
+  next.setHours(7,0,0,0);
   if (now >= next) next.setDate(next.getDate()+1);
-  const diff = Math.round((next - now) / 60000);
+  const diff = Math.round((next-now)/60000);
   document.getElementById('nextRefresh').textContent =
     `Auto-refresh in ${Math.floor(diff/60)}h ${diff%60}m`;
 }
-
 function scheduleAutoRefresh() {
-  const now  = new Date();
-  const next = new Date(); next.setHours(7,0,0,0);
+  const now = new Date(), next = new Date();
+  next.setHours(7,0,0,0);
   if (now >= next) next.setDate(next.getDate()+1);
-  setTimeout(() => {
-    triggerAutoRefresh();
-    setInterval(triggerAutoRefresh, 24 * 60 * 60 * 1000);
-  }, next - now);
+  setTimeout(()=>{ triggerAutoRefresh(); setInterval(triggerAutoRefresh,86400000); }, next-now);
 }
-
 function triggerAutoRefresh() {
-  const base = localStorage.getItem(KEY_BASE) || 'WorkOrdersAdministration';
+  const base = localStorage.getItem(KEY_BASE)||'WorkOrdersAdministration';
   loadData(buildFileName(base), true);
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // MANUAL CONTROLS
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 function saveAndLoad() {
   const base = document.getElementById('baseNameInput').value.trim();
-  if (!base) { setStatus('error', 'Please enter a base filename.'); return; }
+  if (!base) { setStatus('error','Please enter a base filename.'); return; }
   localStorage.setItem(KEY_BASE, base);
   updatePreview();
   loadData(buildFileName(base));
 }
-
 function manualRefresh() {
-  const base = localStorage.getItem(KEY_BASE) || document.getElementById('baseNameInput').value.trim();
+  const base = localStorage.getItem(KEY_BASE)||document.getElementById('baseNameInput').value.trim();
   loadData(buildFileName(base), true);
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // STATUS BANNER
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 function setStatus(type, msg, persist) {
   const banner = document.getElementById('statusBanner');
   document.getElementById('statusText').textContent = msg;
-  document.getElementById('statusSpinner').style.display = type === 'loading' ? 'block' : 'none';
-  banner.className = 'status-banner show ' + type;
-  if (!persist && type !== 'loading') setTimeout(() => banner.classList.remove('show'), 7000);
+  document.getElementById('statusSpinner').style.display = type==='loading'?'block':'none';
+  banner.className = 'status-banner show '+type;
+  if (!persist && type!=='loading') setTimeout(()=>banner.classList.remove('show'),7000);
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// DATA FETCH VIA MICROSOFT GRAPH
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// GRAPH API FETCH
+// ═══════════════════════════════════════════════════════════════
 async function loadData(fileName, allowFallback) {
   document.getElementById('loadBtn').disabled    = true;
   document.getElementById('refreshBtn').disabled = true;
-  setStatus('loading', `Fetching "${fileName}" from SharePoint…`, true);
-
+  setStatus('loading',`Fetching "${fileName}" from SharePoint…`,true);
   try {
     const buffer = await fetchViaGraph(fileName);
     renderWorkbook(buffer, fileName);
   } catch(err) {
     const lastFile = localStorage.getItem(KEY_LAST_FILE);
-    if (allowFallback && lastFile && lastFile !== fileName) {
-      setStatus('loading', `"${fileName}" not found — trying last known file: "${lastFile}"…`, true);
+    if (allowFallback && lastFile && lastFile!==fileName) {
+      setStatus('loading',`"${fileName}" not found — trying last known file: "${lastFile}"…`,true);
       try {
         const buffer = await fetchViaGraph(lastFile);
         renderWorkbook(buffer, lastFile,
           `⚠️ Today's file not found. Showing data from "${lastFile}". Update the base name if the series was renamed.`);
-      } catch(e2) {
-        setStatus('error', e2.message);
-      }
-    } else {
-      setStatus('error', err.message);
-    }
+      } catch(e2) { setStatus('error', e2.message); }
+    } else { setStatus('error', err.message); }
   } finally {
     document.getElementById('loadBtn').disabled    = false;
     document.getElementById('refreshBtn').disabled = false;
@@ -494,163 +479,137 @@ async function loadData(fileName, allowFallback) {
 }
 
 async function fetchViaGraph(fileName) {
-  const token = await getToken();
-
-  // Get SharePoint site ID
+  const token   = await getToken();
   const siteRes = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers:{ Authorization:`Bearer ${token}` } }
   );
-  if (!siteRes.ok) throw new Error(`Cannot access SharePoint site (HTTP ${siteRes.status}). Check API permissions in Azure.`);
-  const site = await siteRes.json();
-
-  // Fetch file content
+  if (!siteRes.ok) throw new Error(`Cannot access SharePoint site (HTTP ${siteRes.status}). Check API permissions.`);
+  const site    = await siteRes.json();
   const filePath = `${SP_FOLDER}/${fileName}`;
   const fileRes  = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${site.id}/drive/root:/${filePath}:/content`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers:{ Authorization:`Bearer ${token}` } }
   );
-
-  if (fileRes.status === 404) throw new Error(`File not found: "${fileName}". Check the base name matches your SharePoint export file.`);
-  if (fileRes.status === 403) throw new Error('Access denied to the file. Check your account has permission to the SharePoint folder.');
-  if (!fileRes.ok)            throw new Error(`Graph API error (HTTP ${fileRes.status}) when fetching the file.`);
-
+  if (fileRes.status===404) throw new Error(`File not found: "${fileName}". Check the base name matches your SharePoint export.`);
+  if (fileRes.status===403) throw new Error('Access denied. Your account may not have permission to this SharePoint folder.');
+  if (!fileRes.ok)          throw new Error(`Graph API error (HTTP ${fileRes.status}).`);
   return fileRes.arrayBuffer();
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// WORKBOOK PARSING & RENDER
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// WORKBOOK RENDER
+// ═══════════════════════════════════════════════════════════════
 function renderWorkbook(buffer, fileName, warning) {
-  const wb    = XLSX.read(buffer, { type:'array', cellDates:true });
+  const wb    = XLSX.read(buffer,{type:'array',cellDates:true});
   const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows  = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+  const rows  = XLSX.utils.sheet_to_json(sheet,{defval:''});
   if (!rows.length) throw new Error('The Excel file appears to be empty.');
-
   processAndRender(rows);
-
   localStorage.setItem(KEY_LAST_FILE, fileName);
   localStorage.setItem(KEY_LAST_DATE, todayISO());
-
-  const t = new Date().toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
+  const t = new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});
   document.getElementById('lastUpdated').textContent = `Updated ${t} · ${fileName}`;
-
   if (warning) setStatus('error', warning);
-  else         setStatus('success', `Loaded ${rows.length.toLocaleString()} rows from "${fileName}"`);
+  else         setStatus('success',`Loaded ${rows.length.toLocaleString()} rows from "${fileName}"`);
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // DATA PROCESSING
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 function isActive(row) {
-  const s = (row['Status'] || '').toString().toLowerCase().trim();
-  return ACTIVE_STATUSES.some(a => s.includes(a));
+  const s = (row['Status']||'').toString().toLowerCase().trim();
+  return ACTIVE_STATUSES.some(a=>s.includes(a));
 }
-
 function parseDate(v) {
   if (!v) return null;
-  if (v instanceof Date) return isNaN(v) ? null : v;
-  const d = new Date(v);
-  return isNaN(d) ? null : d;
+  if (v instanceof Date) return isNaN(v)?null:v;
+  const d=new Date(v); return isNaN(d)?null:d;
 }
-
-function countBy(rows, col) {
-  const m = {};
-  rows.forEach(r => {
-    const k = (r[col] || '(Blank)').toString().trim() || '(Blank)';
-    m[k] = (m[k] || 0) + 1;
-  });
+function countBy(rows,col) {
+  const m={};
+  rows.forEach(r=>{ const k=(r[col]||'(Blank)').toString().trim()||'(Blank)'; m[k]=(m[k]||0)+1; });
   return m;
 }
-
-function topN(map, n) {
-  const s = Object.entries(map).sort((a,b) => b[1]-a[1]).slice(0, n);
-  return { labels: s.map(e=>e[0]), values: s.map(e=>e[1]) };
+function topN(map,n) {
+  const s=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  return {labels:s.map(e=>e[0]),values:s.map(e=>e[1])};
 }
-
 function processAndRender(rows) {
-  const today    = new Date(); today.setHours(0,0,0,0);
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
-  const w1ago    = new Date(today); w1ago.setDate(today.getDate()-7);
-  const w2ago    = new Date(today); w2ago.setDate(today.getDate()-14);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const tomorrow=new Date(today); tomorrow.setDate(today.getDate()+1);
+  const w1ago=new Date(today);   w1ago.setDate(today.getDate()-7);
+  const w2ago=new Date(today);   w2ago.setDate(today.getDate()-14);
 
   const active   = rows.filter(isActive);
-  const noDate   = active.filter(r => !parseDate(r[COL.suggestedDate]));
-  const overdue  = active.filter(r => { const d=parseDate(r[COL.suggestedDate]); return d&&d<today; });
-  const dueToday = active.filter(r => { const d=parseDate(r[COL.suggestedDate]); return d&&d>=today&&d<tomorrow; });
+  const noDate   = active.filter(r=>!parseDate(r[COL.suggestedDate]));
+  const overdue  = active.filter(r=>{const d=parseDate(r[COL.suggestedDate]);return d&&d<today;});
+  const dueToday = active.filter(r=>{const d=parseDate(r[COL.suggestedDate]);return d&&d>=today&&d<tomorrow;});
 
   document.getElementById('kpi-active').textContent  = active.length.toLocaleString();
   document.getElementById('kpi-nodate').textContent  = noDate.length.toLocaleString();
   document.getElementById('kpi-overdue').textContent = overdue.length.toLocaleString();
   document.getElementById('kpi-today').textContent   = dueToday.length.toLocaleString();
 
-  renderHBar('assignedChart', topN(countBy(active,   COL.assignedUsers), 10), P_BLUE);
-  renderHBar('dueTodayChart', topN(countBy(dueToday, COL.assignedUsers), 10), P_PURPLE);
-  renderPie('priorityChart',  'priorityLegend', countBy(active, COL.priority), P_PIE1);
+  renderHBar('assignedChart', topN(countBy(active,  COL.assignedUsers),10), P_BLUE);
+  renderHBar('dueTodayChart', topN(countBy(dueToday,COL.assignedUsers),10), P_PURPLE);
+  renderPie('priorityChart',  'priorityLegend', countBy(active,COL.priority), P_PIE1);
 
-  const tf = {
+  const tf={
     'Due Today':        dueToday.length,
-    'Due Over 2 Weeks': overdue.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d<w2ago; }).length,
-    '2 Weeks Ago':      overdue.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d>=w2ago&&d<w1ago; }).length,
-    '1 Week Ago':       overdue.filter(r=>{ const d=parseDate(r[COL.suggestedDate]); return d&&d>=w1ago&&d<today; }).length,
+    'Due Over 2 Weeks': overdue.filter(r=>{const d=parseDate(r[COL.suggestedDate]);return d&&d<w2ago;}).length,
+    '2 Weeks Ago':      overdue.filter(r=>{const d=parseDate(r[COL.suggestedDate]);return d&&d>=w2ago&&d<w1ago;}).length,
+    '1 Week Ago':       overdue.filter(r=>{const d=parseDate(r[COL.suggestedDate]);return d&&d>=w1ago&&d<today;}).length,
   };
-  renderPie('timeframeChart', 'timeframeLegend', tf, P_PIE2);
-  renderHBar('typeChart', topN(countBy(active, COL.type), 15), null, P_RED);
+  renderPie('timeframeChart','timeframeLegend',tf,P_PIE2);
+  renderHBar('typeChart',topN(countBy(active,COL.type),15),null,P_RED);
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // CHART HELPERS
-// ═══════════════════════════════════════════════════════════════════
-let charts = {};
-function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
-const GC = 'rgba(255,255,255,0.06)', LC = '#7a8099', TF = { family:'DM Mono', size:11 };
+// ═══════════════════════════════════════════════════════════════
+let charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+const GC='rgba(255,255,255,0.06)',LC='#7a8099',TF={family:'DM Mono',size:11};
 
-function renderHBar(id, {labels, values}, single, palette) {
+function renderHBar(id,{labels,values},single,palette){
   destroyChart(id);
-  const ctx = document.getElementById(id); if (!ctx) return;
-  const bg  = palette ? palette.slice(0, values.length) : values.map(() => single);
-  charts[id] = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{ data:values, backgroundColor:bg, borderRadius:3, borderSkipped:false }] },
-    options: {
-      indexAxis: 'y', responsive:true, maintainAspectRatio:false,
-      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>`  ${c.parsed.x.toLocaleString()}`}} },
-      scales: {
-        x: { grid:{color:GC}, ticks:{color:LC, font:TF} },
-        y: { grid:{display:false}, ticks:{color:LC, font:TF} }
-      }
-    }
+  const ctx=document.getElementById(id); if(!ctx)return;
+  const bg=palette?palette.slice(0,values.length):values.map(()=>single);
+  charts[id]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data:values,backgroundColor:bg,borderRadius:3,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`  ${c.parsed.x.toLocaleString()}`}}},
+      scales:{x:{grid:{color:GC},ticks:{color:LC,font:TF}},y:{grid:{display:false},ticks:{color:LC,font:TF}}}}
   });
 }
-
-function renderPie(cid, lid, dataMap, colors) {
+function renderPie(cid,lid,dataMap,colors){
   destroyChart(cid);
-  const ctx = document.getElementById(cid);
-  const leg = document.getElementById(lid);
-  if (!ctx) return;
-  const entries = Object.entries(dataMap).sort((a,b) => b[1]-a[1]);
-  const labels  = entries.map(e=>e[0]);
-  const values  = entries.map(e=>e[1]);
-  const total   = values.reduce((a,b) => a+b, 0);
-  const bg      = colors.slice(0, labels.length);
-  charts[cid]   = new Chart(ctx, {
-    type: 'pie',
-    data: { labels, datasets: [{ data:values, backgroundColor:bg, borderWidth:2, borderColor:'#181c27' }] },
-    options: {
-      responsive:false, maintainAspectRatio:false,
-      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed} (${Math.round(c.parsed/total*100)}%)`}} }
-    }
+  const ctx=document.getElementById(cid),leg=document.getElementById(lid); if(!ctx)return;
+  const entries=Object.entries(dataMap).sort((a,b)=>b[1]-a[1]);
+  const labels=entries.map(e=>e[0]),values=entries.map(e=>e[1]);
+  const total=values.reduce((a,b)=>a+b,0),bg=colors.slice(0,labels.length);
+  charts[cid]=new Chart(ctx,{type:'pie',
+    data:{labels,datasets:[{data:values,backgroundColor:bg,borderWidth:2,borderColor:'#181c27'}]},
+    options:{responsive:false,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed} (${Math.round(c.parsed/total*100)}%)`}}}}
   });
-  leg.innerHTML = '';
-  labels.forEach((l, i) => {
-    const pct = total ? Math.round(values[i]/total*100) : 0;
-    leg.innerHTML += `<div class="legend-item">
+  leg.innerHTML='';
+  labels.forEach((l,i)=>{
+    const pct=total?Math.round(values[i]/total*100):0;
+    leg.innerHTML+=`<div class="legend-item">
       <div class="legend-dot" style="background:${bg[i]}"></div>
-      <span>${l.length>20 ? l.slice(0,20)+'…' : l}</span>
+      <span>${l.length>20?l.slice(0,20)+'…':l}</span>
       <span class="legend-val">${values[i]} <span style="color:var(--text-muted)">(${pct}%)</span></span>
     </div>`;
   });
 }
+
+// ═══════════════════════════════════════════════════════════════
+// KICK OFF
+// ═══════════════════════════════════════════════════════════════
+startApp();
 </script>
 </body>
 </html>
